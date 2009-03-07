@@ -53,6 +53,7 @@ class Parser:
     formatting_rules = ur"""(?P<ent_numeric>&#(\d{1,5}|x[0-9a-fA-F]+);)
 (?:(?P<asterisk>\\\*)
 (?P<underscore>\\_)
+(?P<newline>\\n)
 (?P<emph>_)
 (?P<bold>\*)
 (?P<u>__)
@@ -146,6 +147,9 @@ class Parser:
 
     def _underscore_repl(self, word):
         return u'_'
+
+    def _newline_repl(self, word):
+        return self.formatter.linebreak(False)
 
     def _u_repl(self, word):
         """Handle underline."""
