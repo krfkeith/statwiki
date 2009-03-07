@@ -1,0 +1,25 @@
+= Wiki =
+
+Welcome to the example *static wiki*.
+
+== How to customize? ==
+
+You can customize the look of this page by editing the template. For a start, change the site title, slogan, menu and your name in the footer.
+
+To do that, open the `template/default.html` file found in the wiki directory in a text editor and change the relevant parts.
+
+Be sure to rebuild your wiki using the `--build` option after you make any changes to the template HTML file.
+
+== Search bar ==
+
+Note that the search bar on the top of the page won't work until you create a search bar using _Google's Custom Search Engine_ service available at:
+
+http://www.google.com/cse
+
+You should configure it to search only the wiki pages. A final step is to go to the search bar settings, then to the _Code_ tab and copy the *value* attribute from the following line:
+
+{{{
+<input type="hidden" name="cx" value="">
+}}}
+
+Paste it into the same looking line found in `template/default.html` and rebuild the wiki.
