@@ -995,7 +995,7 @@ class Formatter(FormatterBase):
         """
         if self._in_code_area:
             preformatted = 1
-        return ['\n', '<br />\n'][not preformatted] + self._indent_spaces()
+        return ['\n', '<br>\n'][not preformatted] + self._indent_spaces()
         
     def paragraph(self, on, **kw):
         """Creates a paragraph with a <p> element.

@@ -141,16 +141,14 @@ class Synchronizer(SynchronizerBase):
         return not name.startswith('_')
         
     def on_file(self, name):
+        if name.startswith('_') or name.endswith('.wiki'):
+            return False
         dir = os.getcwd()
-        if dir == self.root:
-            # Exclude config file, files starting with underscore and wiki files.
-            if name == config.filename or name.startswith('_') or name.endswith('.wiki'):
-                return False
-        # Exclude template HTML files, both default and sidebar if provided.
         path = os.path.join(dir, name)
-        if path == wikiutil.fixFileNameCase(os.path.join(self.root, os.path.normcase(config.template.default))) or \
+        if path == wikiutil.fixFileNameCase(os.path.join(self.root, os.path.normcase(config.filename))) or \
+                path == wikiutil.fixFileNameCase(os.path.join(self.root, os.path.normcase(config.template.default))) or \
                 (hasattr(config.template, 'sidebar') and \
-                path == wikiutil.fixFileNameCaseos.path.join(self.root, os.path.normcase(config.template.sidebar))):
+                    path == wikiutil.fixFileNameCaseos.path.join(self.root, os.path.normcase(config.template.sidebar))):
             return False
         # Accept the file for upload / Reject from removal.
         return True
