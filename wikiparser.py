@@ -564,7 +564,7 @@ class Parser:
         level = 1
         while h[level:level+1] == '=':
             level += 1
-        depth = min(5,level)
+        depth = min(6,level)
 
         # this is needed for Included pages
         # TODO but it might still result in unpredictable results
