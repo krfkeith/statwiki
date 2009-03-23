@@ -8,8 +8,8 @@
 """
 
 
-__version__ = '0.85.1'
-__date__ = '7.03.2009'
+__version__ = '0.85.5'
+__date__ = '20.03.2009'
 
 
 import sys, os
@@ -27,7 +27,7 @@ import wikiutil
 
 def read(filename):
     return codecs.open(filename, 'rt', encoding=config.charset).read()
-
+			
 
 class Pragmas(object):
     '''This class keeps dictionaries of all pragmas of all wiki pages. There are
@@ -102,21 +102,92 @@ class Pragmas(object):
             del self.old[filename]
 
 
+def format_text(wikitext, pagename=''):
+    ftemp = StringIO()
+    f = formatter.Formatter(pagename=pagename)
+    p = wikiparser.Parser(wikitext, ftemp)
+    p.format(f)
+    return ftemp.getvalue()
+
+
+class Content(object):
+    def __init__(self, pagename):
+        self.pagename = pagename
+
+        filename = wikiutil.pageName2inputFile(pagename)
+        assert os.path.exists(filename), '%s does not exist' % filename
+
+        # XXX: all_pragmas is global
+        # it is created by process(); we're safe to use it here since no Content
+        # object will be (and never can be!) created before process() is called
+        self.pragmas = all_pragmas[filename]
+
+        # Content as wikitext. Used by .format() (may be modified before calling).
+        self.wikitext = read(filename)
+
+    def format(self):
+        '''Formats the self.wikitext and returns the content as HTML source (unicode).
+        '''
+        # Format the content.
+        content = format_text(self.wikitext, self.pagename)
+    
+        # Process links to subpages in this category.
+        subpages = []
+        for fname, prag in all_pragmas.items():
+            if self.pagename in prag.multiple('#category'):
+                subpages.append(wikiutil.inputFile2pageName(fname))
+        if subpages:
+            lines = ['', '<a name="#category-subpages"></a>',
+                '<h1>%s</h1>' % (config.text.subpages % dict(value=self.pagename)),
+                '<div id="category-subpages">', '<table>', '<tr>', '<td>', '<ul>']
+            subpages.sort(lambda a, b: -(a.lower() < b.lower()))
+            num_of_columns = 3
+            m = len(subpages)
+            p = m / num_of_columns
+            if m % num_of_columns:
+                p += 1
+            for i in xrange(m):
+                if i > 0 and i % p == 0:
+                    lines.extend(['</ul>', '</td>', '<td>', '<ul>'])
+                lines.append('<li><a href="%s.html">%s</a>' % ((subpages[i],)*2))
+            lines.extend(['</ul>', '</td>', '</tr>', '</table>', '</div>'])
+            content += '\n'.join(lines)
+    
+        # Process categories this page belongs to.
+        categories = self.pragmas.multiple('#category')
+        if categories:
+            categories.sort(lambda a, b: -(a.lower() < b.lower()))
+            for category in categories:
+                fname = wikiutil.pageName2inputFile(category)
+                wikiutil.assertFileNameCase(fname)
+                assert os.path.exists(fname), '%s does not exist' % fname
+            links = ['<a href="%s.html">%s</a>' % (name, name) for name in categories]
+            if len(links) > 1:
+                format = config.text.categories
+            else:
+                format = config.text.category
+            lines = ['', '<p class="categories-links">']
+            lines.append(format % dict(value=' | '.join(links)))
+            lines.append('</p>')
+            content += '\n'.join(lines)
+        
+        return content
+
+    def dump(self, f):
+        '''Dumps the HTML content to the "f" file object. The file should be opened using
+        codecs.open and support Unicode input.
+        '''
+        f.write(self.format())
+
+    def __unicode__(self):
+        return self.format()
+        
+
 def process(wikipages):
     donepages = []
 
-    # Load default template.
-    default_template = read(config.template.default)
-    
-    # Load sidebar template.
-    try:
-        name = config.template.sidebar
-    except AttributeError:
-        sidebar_template = default_template
-    else:
-        sidebar_template = read(name)
-
     # Load all pragmas.
+    global all_pragmas # used by Content objects too
     all_pragmas = Pragmas(force_update=wikipages)
 
     # Check for deleted pages.
@@ -140,123 +211,65 @@ def process(wikipages):
         pragmas = all_pragmas[filename]
         prev_pragmas = all_pragmas.previous(filename)
 
-        ftemp = StringIO()
-        f = formatter.Formatter(pagename=pagename)
-        p = wikiparser.Parser(read(filename), ftemp)
+        # Prepare the namespace for the generator script.
+        globs = dict(pagename=pagename,
+            summary=pragmas.single('#summary', ''),
+            genconfig=config.generator)
 
-        try:
-            sidebar = pragmas.single('#sidebar')
-            assert sidebar != ''
-        except ValueError:
-            sidebar = ''
-    
         print filename
 
-        if sidebar:
-            # Format the sidebar content
-            fname = wikiutil.pageName2inputFile(sidebar)
-            wikiutil.assertFileNameCase(fname)
-            assert os.path.exists(fname), '%s does not exist' % fname
-            fstemp = StringIO()
-            sp = wikiparser.Parser(read(fname), fstemp)
-            sp.format(f)
-            sidebar_content = fstemp.getvalue()
-        else:
-            # No sideabr
-            sidebar_content = ''
-    
-        # Get the page summary.
-        summary = pragmas.single('#summary', '')
-    
-        # Format the content.
-        p.format(f)
-        content = ftemp.getvalue()
-
-        # Process links to subpages in this category.
-        subpages = []
-        for fname, prag in all_pragmas.items():
-            if pagename in prag.multiple('#category'):
-                subpages.append(wikiutil.inputFile2pageName(fname))
-        if subpages:
-            lines = ['', '<a name="#category-subpages"></a>',
-                '<h1>%s</h1>' % (config.text.subpages % dict(name=pagename)),
-                '<div id="category-subpages">', '<table>', '<tr>', '<td>', '<ul>']
-            subpages.sort(lambda a, b: -(a.lower() < b.lower()))
-            num_of_columns = 3
-            m = len(subpages)
-            p = m / num_of_columns
-            if m % num_of_columns:
-                p += 1
-            for i in xrange(m):
-                if i > 0 and i % p == 0:
-                    lines.extend(['</ul>', '</td>', '<td>', '<ul>'])
-                lines.append('<li><a href="%s.html">%s</a>' % ((subpages[i],)*2))
-            lines.extend(['</ul>', '</td>', '</tr>', '</table>', '</div>'])
-            content += '\n'.join(lines)
-
-        # Process categories this page belongs to.
-        lines = ['']
-        for category in sorted(pragmas.multiple('#category'),
-                lambda a, b: -(a.lower() < b.lower())):
-            fname = wikiutil.pageName2inputFile(category)
-            wikiutil.assertFileNameCase(fname)
-            assert os.path.exists(fname), '%s does not exist' % fname
-            lines.append('<p class="category-link"><a href="%s.html">%s</a></p>' \
-                % (category, (config.text.category % dict(name=category))))
-            # Add the category page to processing to update its subpages list.
+        # Process categories this page was added to.
+        for category in pragmas.multiple('#category'):
             if category not in prev_pragmas.multiple('#category'):
                 fname = wikiutil.pageName2inputFile(category)
                 wikiutil.assertFileNameCase(fname)
                 if fname not in donepages and fname not in wikipages:
                     wikipages.append(fname)
-        content += '\n'.join(lines)
         
         # Process categories this page was removed from.
         for category in prev_pragmas.multiple('#category'):
             if category not in pragmas.multiple('#category'):
                 fname = wikiutil.pageName2inputFile(category)
-                wikiutil.assertFileNameCase(fname)
-                if fname not in donepages and fname not in wikipages and \
-                        os.path.exists(fname):
-                    wikipages.append(fname)
-
-        # Choose a template.
-        try:
-            name = pragmas.single('#template')
-        except ValueError:
-            if sidebar:
-                template = sidebar_template
-            else:
-                template = default_template
-        else:
-            template = read(name)
+                if os.path.exists(fname):
+                    wikiutil.assertFileNameCase(fname)
+                    if fname not in donepages and fname not in wikipages and \
+                            os.path.exists(fname):
+                        wikipages.append(fname)
         
-        # Create a HTML from the template.
-        fout = codecs.open(wikiutil.pageName2outputFile(pagename), 'wt', encoding=config.charset)
-        mtime = time.strftime(config.general.timeformat, time.gmtime(os.path.getmtime(filename)))
-        ptime = time.strftime(config.general.timeformat, time.gmtime())
-        fout.write(template % dict(pagename=pagename.replace(u'_', u' '),
-            summary=summary,
-            has_sidebar=not not sidebar,
-            sidebar=sidebar_content,
-            content=content,
-            modification_time=mtime.replace(' ', '&nbsp;'),
-            processing_time=ptime.replace(' ', '&nbsp;'),
-            statwiki_version=__version__.replace(' ', '&nbsp;'),
-            statwiki_date=__date__.replace(' ', '&nbsp;')
-        ))
-        fout.close()
+        # Load included pages.
+        for inc in pragmas.multiple('#include'):
+            args = inc.split()
+            assert len(args) == 3 and args[1] == 'as', '#include pragma syntax error'
+            globs[args[2]] = Content(args[0])
+
+        # Create a HTML using the generator script.
+        globs.update(dict(content=Content(pagename),
+            modify_time=time.strftime(config.general.timeformat,
+                time.gmtime(os.path.getmtime(filename))),
+            generate_time=time.strftime(config.general.timeformat,
+                time.gmtime()),
+            out=codecs.open(wikiutil.pageName2outputFile(pagename),
+                'wt', encoding=config.charset)))
+        try:
+            for args in pragmas.multiple('#execute'):
+                exec args in globs
+            execfile(config.general.generator, globs)
+        except:
+            globs['out'].close()
+            os.remove(wikiutil.pageName2outputFile(pagename))
+            raise
+        globs['out'].close()
 
         if filename not in donepages:
             donepages.append(filename)
-    
-        # Add pages using the current page as a sidebar to processing.
+
+        # Add pages including the current page to processing.
         for filename, pragmas in all_pragmas.items():
             try:
-                 sidebar = pragmas.single('#sidebar')
+                 inc = pragmas.single('#include').split(None, 1)[0]
             except ValueError:
                 continue
-            if sidebar != pagename:
+            if inc != pagename:
                 continue
             if filename not in donepages and filename not in wikipages:
                 assert os.path.exists(filename), '%s does not exist' % filename

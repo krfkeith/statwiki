@@ -29,7 +29,7 @@ class Parser:
     # known processing instructions
     #processing_instr = ("##", "#format", "#refresh", "#redirect", "#deprecated",
     #    "#pragma", "#form", "#acl", "#language")
-    processing_instr = ('#summary', '#sidebar', '#category', '#template')
+    processing_instr = ('#summary', '#sidebar', '#category', '#execute', '#include')
 
     # some common strings
     punct_pattern = re.escape(u'''"\'}]|:,.)?!''')
@@ -40,7 +40,7 @@ class Parser:
         'u': chartypes.chars_upper,
         'l': chartypes.chars_lower,
     }
-    url_rule = ur'%(url_guard)s(%(schema)s)\:([^\s\<%(punct)s]|([%(punct)s][^\s\<%(punct)s]))+' % {
+    url_rule = ur'%(url_guard)s(%(schema)s)\:([^\s\<\\%(punct)s]|([%(punct)s][^\s\<%(punct)s]))+' % {
         'url_guard': u'(^|(?<!\w))',
         'schema': schema_pattern,
         'punct': punct_pattern,
@@ -66,6 +66,7 @@ class Parser:
 (?P<big>(\~\+ ?|\+\~))
 (?P<strike>\~\~)
 (?P<rule>-{4,})
+(?P<anchor>^\#[^\s\#]+\s$)
 (?P<comment>^\#.*$))
 (?P<ol>%(ol_rule)s)
 (?P<dl>%(dl_rule)s)
@@ -212,7 +213,7 @@ class Parser:
             result = result + self.formatter.rule(size)
         return result
 
-    def _word_repl(self, word, text=None, wikiname=True, css=None):
+    def _word_repl(self, word, text=None, css=None):
         """Handle WikiNames."""
 
         if not text:
@@ -237,23 +238,23 @@ class Parser:
             css = ' '.join(schemes)
 
         result = []
-        if not wikiname or int(config.general.camelcase):
-            result.append(self.formatter.pagelink(1, word, anchor=anchor, css=css))
-        result.append(self.formatter.text(text.replace(u'_', u' ')))
-        if not wikiname or int(config.general.camelcase):
-            result.append(self.formatter.pagelink(0, word))
-
+        result.append(self.formatter.pagelink(1, word, anchor=anchor, css=css))
+        result.append(self.formatter.text(text))
+        result.append(self.formatter.pagelink(0, word))
         return ''.join(result)
 
     def _notword_repl(self, word):
         """Handle !NotWikiNames."""
-        return self.formatter.nowikiword(word[1:])
+        text = self.formatter.nowikiword(word[1:])
+        if self.in_li or self.in_dd:
+            return '<span>' + text + '</span>'
+        return text
 
     def _url_repl(self, word):
         """Handle literal URLs including inline images."""
         scheme = word.split(":", 1)[0]
 
-        attrs = dict()
+        attrs = {}
 
         # Handle literal URLs to local resources using a special 'file' scheme. This allows
         # to insert local images without using brackets and making them a link to themselfes
@@ -261,8 +262,11 @@ class Parser:
         if scheme == 'file':
             # file:///image.gif -> image.gif
             word = word[7:].split('/', 1)[-1]
-        elif config.general.targetblank:
-            attrs = dict(target='_blank')
+            text = wikiutil.url_unquote(os.path.basename(word))
+        else:
+            text = word
+            if config.general.targetblank:
+                attrs = dict(target='_blank')
 
         # CSS class split
         schsep = word.split('|')
@@ -271,14 +275,12 @@ class Parser:
             scheme = '%s %s' % (scheme, ' '.join(schsep[1:]))
 
         if wikiutil.isPicture(word):
-            #word = mapURL(self.request, word)
             # Get image name http://here.com/dir/image.gif -> image
-            name = wikiutil.url_unquote(word.split('/')[-1])
-            name = ''.join(name.split('.')[:-1])
+            name = wikiutil.url_unquote(os.path.splitext(os.path.basename(word))[0])
             return self.formatter.image(src=word, alt=name, css=scheme)
         else:
             return (self.formatter.url(1, word, css=scheme, **attrs) +
-                    self.formatter.text(word) +
+                    self.formatter.text(text) +
                     self.formatter.url(0))
 
     def _bracket_repl(self, word):
@@ -304,10 +306,14 @@ class Parser:
 
         # Handle file:// URLs as local file names.
         href = []
+        text = []
         for w in words:
             if w.startswith('file://'):
-                w = w[7:].split('/', 1)[-1]
-            href.append(w)
+                href.append(w[7:].split('/', 1)[-1])
+                text.append(os.path.basename(w))
+            else:
+                href.append(w)
+                text.append(w)
 
         if re.match(self.url_rule, href[0]) and config.general.targetblank:
             attrs = dict(target='_blank')
@@ -317,7 +323,7 @@ class Parser:
         if re.match(self.url_rule, words[1]) and wikiutil.isPicture(words[1]) and lenwords > 1:
             if re.match(self.url_rule, words[0]):
                 return (self.formatter.url(1, href[0], do_escape=0, **attrs) +
-                        self.formatter.image(title=href[0], alt=href[0], src=href[1], css=scheme) +
+                        self.formatter.image(title=text[0], alt=text[0], src=href[1], css=scheme) +
                         self.formatter.url(0))
             else:
                 # This is similar to _word_repl() but creates an image link.
@@ -335,10 +341,10 @@ class Parser:
             else:
                 scheme = urlscheme
             return (self.formatter.url(1, href[0], do_escape=0, css=scheme, **attrs) +
-                    self.formatter.text(href[1]) +
+                    self.formatter.text(text[1]) +
                     self.formatter.url(0))
         else:
-            return self._word_repl(words[0], text=href[1], wikiname=False, css=scheme)
+            return self._word_repl(words[0], text=text[1], css=scheme)
 
     def _email_repl(self, word):
         """Handle email addresses (without a leading mailto:)."""
@@ -557,13 +563,6 @@ class Parser:
 
     def _heading_repl(self, word):
         """Handle section headings."""
-        try:
-            # Py2.5+
-            from hashlib import sha1
-        except ImportError:
-            # older versions
-            from sha import new as sha1
-
         h = word.strip()
         level = 1
         while h[level:level+1] == '=':
@@ -577,8 +576,23 @@ class Parser:
         #pntt = self.formatter.page.page_name + title_text
         pntt = title_text
 
+        # --- XXX: we don't need the id's in statwiki
+        result = [self._closeP()]
+        result.append(self.formatter.heading(1, depth))
+        result.append(self.formatter.text(title_text))
+        result.append(self.formatter.heading(0, depth))
+        return ''.join(result)
+        # ---
+
         self.titles.setdefault(pntt, 0)
         self.titles[pntt] += 1
+
+        try:
+            # Py2.5+
+            from hashlib import sha1
+        except ImportError:
+            # older versions
+            from sha import new as sha1
 
         unique_id = ''
         if self.titles[pntt] > 1:
@@ -634,6 +648,12 @@ class Parser:
             return self.formatter.preformatted(self.in_pre)
         return self.formatter.text(word)
 
+    def _anchor_repl(self, word):
+        """Handle anchors definitions."""
+        self.line_is_empty = 1 # markup following anchor lines treats them as if they were empty
+        return (self.formatter.url(1, None, name=word[1:].rstrip()) +
+                self.formatter.url(0, None))
+        
     def _comment_repl(self, word):
         # if we are in a paragraph, we must close it so that normal text following
         # in the line below the comment will reopen a new paragraph.
@@ -714,7 +734,7 @@ class Parser:
         result = []
         for type, hit in match.groupdict().items():
             if hit is not None and type != "hmarker":
-                
+
                 ###result.append(u'<span class="info">[replace: %s: "%s"]</span>' % (type, hit))
                 if self.in_pre and type not in ['pre', 'ent']:
                     return self.formatter.text(hit) 
@@ -746,10 +766,12 @@ class Parser:
 
         # prepare regex patterns
         rules = self.formatting_rules.replace('\n', '|')
-        rules = ur'(?P<notword>!%(word_rule)s)|%(rules)s' % {
-            'word_rule': self.word_rule,
-            'rules': rules,
-        }
+        if int(config.general.camelcase):
+            rules = ur'(?P<notword>!%(word_rule)s)|%(rules)s' % {
+                'word_rule': self.word_rule,
+                'rules': rules}
+        else:
+            rules = rules.replace('(?P<word>%s)|' % self.word_rule, '')
         scan_re = re.compile(rules, re.UNICODE)
         number_re = re.compile(self.ol_rule, re.UNICODE)
         term_re = re.compile(self.dl_rule, re.UNICODE)
@@ -832,11 +854,6 @@ class Parser:
                     if not line.strip(): # just in the case "}}} " when we only have blanks left...
                         continue
             else:
-                # Create an anchor.
-                if line.startswith('#'):
-                    self.request.write(self.formatter.url(1, None, name=line[1:].split(None, 1)[0]) +
-                                       self.formatter.url(0, None))
-
                 # we don't have \n as whitespace any more
                 # This is the space between lines we join to one paragraph
                 line += ' '
