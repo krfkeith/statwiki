@@ -67,13 +67,13 @@ h4 { font-size: 1.2em; text-transform: none;}
 h5 { font-size: 1.0em; text-transform: none;}
 h6 { font-size: 0.9em; text-transform: none;}
 
-#main0 h1, #main1 h1 {
+#main h1, #mainbar h1 {
 	padding: 10px 0 5px 5px;
 	margin: 0 0 0 10px;
 	border-bottom: 1px solid #dadada;
 	width: 97.2%;
 }	
-#main0 h2, #main1 h2 {
+#main h2, #mainbar h2 {
 	padding: 5px 0 3px 5px;
 	margin: 0 0 0 10px;
 	border-bottom: 1px solid #dadada;
@@ -273,15 +273,14 @@ form.searchform input.button {
 }
 
 /* main column */
-#main0 {
+#main {
 	float: left;
 	padding: 0;
 	width: 850px;
 }
 
-#main1 {
-	float: left;
-	margin-left: 15px;
+#mainbar {
+	float: right;
 	padding: 0;
 	width: 650px;
 	border-left: 1px solid #dadada;
@@ -290,7 +289,7 @@ form.searchform input.button {
 /* sideabar */
 #sidebar {
 	float: left;
-	width: 21%;
+	width: 190px;
 	padding: 0; 
 }
 #sidebar ul {
@@ -375,9 +374,10 @@ form.searchform input.button {
 	border-bottom: 4px solid #FFA600;
 }
 
-p.category-link {
+p.categories-links {
 	display: block;
  	padding: 5px 10px;
+ 	width: 95%;
  	margin: 6px 10px 0px 10px;
   	background: #FAFAFA; 
 	border: 1px solid #dadada; 

@@ -587,9 +587,9 @@ def assertFileNameCase(filename):
     if sys.platform.startswith('win'):
         path, name = os.path.split(filename)
         if path:
-            assert name in os.listdir(path)
+            assert name in os.listdir(path), '%s: file does not exist in %s' % (name, path)
         else:
-            assert name in os.listdir('.')
+            assert name in os.listdir('.'), '%s: file does not exist' % name
 
 
 def fixFileNameCase(filename):

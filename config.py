@@ -40,6 +40,17 @@ class Section(object):
             self._parser.remove_option(self._sectname, name)
         except NoOptionError, err:
             raise AttributeError(str(err))
+    
+    def items(self):
+        return self._parser.items(self._sectname)
+        
+    def get(self, name, *default):
+        try:
+            return self._parser.get(self._sectname, name)
+        except NoOptionError, err:
+            if default:
+                return default[0]
+            raise AttributeError(str(err))
 
 
 def parse(config_filename):
@@ -55,20 +66,22 @@ filename = ''
 
 # create section objects for easy options access through its attributes
 general = Section(_parser, 'general')
-template = Section(_parser, 'template')
 ftp = Section(_parser, 'ftp')
 text = Section(_parser, 'text')
+# a special section that may be used by the generator
+generator = Section(_parser, 'generator')
 
 # set default values
 general.indexpagename = 'index'
 general.timeformat = '%H:%M, %d %B %Y' # time format as used in time.strftime()
 general.camelcase = 1
 general.targetblank = 0
-template.default = '_template.html'
+general.generator = '_generator.py'
 ftp.port = 21
 ftp.passive = 1
-text.category = 'Category: %(name)s'
-text.subpages = 'Pages in category "%(name)s"'
+text.category = 'Category: %(value)s'
+text.categories = 'Categories: %(value)s'
+text.subpages = 'Pages in category "%(value)s"'
 
 
 # vim:set sw=4 et:

@@ -146,9 +146,7 @@ class Synchronizer(SynchronizerBase):
         dir = os.getcwd()
         path = os.path.join(dir, name)
         if path == wikiutil.fixFileNameCase(os.path.join(self.root, os.path.normcase(config.filename))) or \
-                path == wikiutil.fixFileNameCase(os.path.join(self.root, os.path.normcase(config.template.default))) or \
-                (hasattr(config.template, 'sidebar') and \
-                    path == wikiutil.fixFileNameCaseos.path.join(self.root, os.path.normcase(config.template.sidebar))):
+                path == wikiutil.fixFileNameCase(os.path.join(self.root, os.path.normcase(config.general.generator))):
             return False
         # Accept the file for upload / Reject from removal.
         return True
