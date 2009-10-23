@@ -149,7 +149,8 @@ class Content(object):
             for i in xrange(m):
                 if i > 0 and i % p == 0:
                     lines.extend(['</ul>', '</td>', '<td>', '<ul>'])
-                lines.append('<li><a href="%s.html">%s</a>' % ((subpages[i],)*2))
+                lines.append('<li><a href="%s.html">%s</a>' %
+                    (wikiutil.quoteWikinameURL(subpages[i]), subpages[i]))
             lines.extend(['</ul>', '</td>', '</tr>', '</table>', '</div>'])
             content += '\n'.join(lines)
     
@@ -161,7 +162,8 @@ class Content(object):
                 fname = wikiutil.pageName2inputFile(category)
                 wikiutil.assertFileNameCase(fname)
                 assert os.path.exists(fname), '%s does not exist' % fname
-            links = ['<a href="%s.html">%s</a>' % (name, name) for name in categories]
+            links = ['<a href="%s.html">%s</a>' % (wikiutil.quoteWikinameURL(name),
+                        name) for name in categories]
             if len(links) > 1:
                 format = config.text.categories
             else:
