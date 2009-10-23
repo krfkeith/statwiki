@@ -373,6 +373,10 @@ form.searchform input.button {
 	background-color: #F3F3F3; 
 	border-bottom: 4px solid #FFA600;
 }
+#menu a.current {
+    color: #505050;
+    background-color: #F3F3F3;
+}
 
 p.categories-links {
 	display: block;

@@ -74,7 +74,7 @@ out.write(u'''      </div>
 
 # Create the menu bar.
 if _menu:
-    out.write(format_text(_menu.replace(u'[', u'\n * [')))
+    out.write(format_text(_menu.replace(u'[', u'\n * ['), pagename))
 
 out.write(u'''      </div>
       <div id="content-wrap">''')
